@@ -17,16 +17,28 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Unzip project
-        run: unzip -q AppLock.zip -d proj
-
       - name: Build debug APK
-        working-directory: proj/AppLock
         run: |
+          ls -la
+          mkdir -p proj
+          if ls *.zip >/dev/null 2>&1; then
+            unzip -q -o "$(ls *.zip | head -n 1)" -d proj
+            G=$(find proj -name gradlew | head -n 1)
+            D=$(dirname "$G")
+          else
+            D=.
+          fi
+          echo "Project folder: $D"
+          cd "$D"
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p /tmp/out
+          cp "$(find . -name app-debug.apk | head -n 1)" /tmp/out/app-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: app-lock-apk
-          path: proj/AppLock/app/build/outputs/apk/debug/app-debug.apk
+          path: /tmp/out/app-debug.apk
