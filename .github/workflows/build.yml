@@ -15,28 +15,30 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      - name: Setup Android SDK (optional)
+        uses: android-actions/setup-android@v3
+        continue-on-error: true
+
+      - name: Accept Android licenses
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Build debug APK
         run: |
-          ls -la
-          mkdir -p proj
-          if ls *.zip >/dev/null 2>&1; then
-            unzip -q -o "$(ls *.zip | head -n 1)" -d proj
-            G=$(find proj -name gradlew | head -n 1)
-            D=$(dirname "$G")
-          else
-            D=.
-          fi
-          echo "Project folder: $D"
-          cd "$D"
+          mkdir -p /tmp/proj
+          ZIP=$(find . -name '*.zip' | head -n 1)
+          echo "Zip found: $ZIP"
+          unzip -q -o "$ZIP" -d /tmp/proj
+          G=$(find /tmp/proj -name gradlew | head -n 1)
+          echo "gradlew: $G"
+          cd "$(dirname "$G")"
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Collect APK
         run: |
           mkdir -p /tmp/out
-          cp "$(find . -name app-debug.apk | head -n 1)" /tmp/out/app-debug.apk
+          cp "$(find /tmp/proj -name app-debug.apk | head -n 1)" /tmp/out/app-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
