@@ -1,5 +1,5 @@
 name:AppLock APK Builder
-'on':
+on:
   workflow_dispatch:
   push:
     branches:
