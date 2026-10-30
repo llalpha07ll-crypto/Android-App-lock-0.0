@@ -1,5 +1,57 @@
 
-      - name: Fix Invalid Android XML Attribute
+name: Build AppLock APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '*.zip'
+      - '**/*.zip'
+      - '.github/workflows/build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Extract App ZIP
+        shell: bash
+        run: |
+          set -e
+          ZIP_FILE=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: App ZIP not found"
+            exit 1
+          fi
+
+          mkdir -p extracted
+          unzip -q "$ZIP_FILE" -d extracted
+
+          GRADLE_FILE=$(find extracted -type f -name gradlew | head -n 1)
+
+          if [ -z "$GRADLE_FILE" ]; then
+            echo "ERROR: gradlew not found in ZIP"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$GRADLE_FILE")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Fix Invalid XML Attribute
         shell: bash
         run: |
           python3 - <<'PY'
@@ -7,7 +59,6 @@
           import re
 
           root = pathlib.Path("extracted")
-          fixed = 0
 
           for file in root.rglob("*.xml"):
               content = file.read_text(encoding="utf-8")
@@ -19,8 +70,20 @@
 
               if updated != content:
                   file.write_text(updated, encoding="utf-8")
-                  print(f"Fixed: {file}")
-                  fixed += 1
-
-          print(f"Total XML files fixed: {fixed}")
+                  print("Fixed:", file)
           PY
+
+      - name: Build Debug APK
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppLock-APK
+          path: extracted/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
