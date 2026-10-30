@@ -1,70 +1,26 @@
 
-name: Build AppLock APK
-
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - 'AppLock_OneUI_English.zip'
-      - '*.zip'
-      - '.github/workflows/build.yml'
-
-permissions:
-  contents: read
-
-jobs:
-  build:
-    name: Build Android APK
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Extract AppLock ZIP
+      - name: Fix Invalid Android XML Attribute
         shell: bash
         run: |
-          set -e
-          ZIP_FILE="AppLock_OneUI_English.zip"
+          python3 - <<'PY'
+          import pathlib
+          import re
 
-          if [ ! -f "$ZIP_FILE" ]; then
-            ZIP_FILE=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
-          fi
+          root = pathlib.Path("extracted")
+          fixed = 0
 
-          if [ -z "$ZIP_FILE" ] || [ ! -f "$ZIP_FILE" ]; then
-            echo "AppLock ZIP not found!"
-            exit 1
-          fi
+          for file in root.rglob("*.xml"):
+              content = file.read_text(encoding="utf-8")
+              updated = re.sub(
+                  r'\s+android:childProviders\s*=\s*("[^"]*"|\'[^\']*\')',
+                  '',
+                  content
+              )
 
-          mkdir -p extracted
-          unzip -q "$ZIP_FILE" -d extracted
+              if updated != content:
+                  file.write_text(updated, encoding="utf-8")
+                  print(f"Fixed: {file}")
+                  fixed += 1
 
-          GRADLE_FILE=$(find extracted -type f -name gradlew | head -n 1)
-
-          if [ -z "$GRADLE_FILE" ]; then
-            echo "Gradle wrapper not found!"
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$GRADLE_FILE")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-
-      - name: Build Debug APK
-        run: |
-          cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew --no-daemon clean assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: AppLock-Android-APK
-          path: extracted/**/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 14
+          print(f"Total XML files fixed: {fixed}")
+          PY
