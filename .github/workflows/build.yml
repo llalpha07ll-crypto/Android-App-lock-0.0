@@ -1,0 +1,62 @@
+name: Build AppLock APK
+
+on:
+  push:
+    paths:
+      - '**/AppLock_TouchPattern_OneUI.zip'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Find and extract uploaded ZIP
+        shell: bash
+        run: |
+          ZIP_PATH="$(find . -type f -name 'AppLock_TouchPattern_OneUI.zip' -print -quit)"
+          if [ -z "$ZIP_PATH" ]; then
+            echo "AppLock_TouchPattern_OneUI.zip was not found in the repository."
+            exit 1
+          fi
+          mkdir -p app-lock-source
+          unzip -q "$ZIP_PATH" -d app-lock-source
+
+      - name: Locate Gradle project
+        id: project
+        shell: bash
+        run: |
+          GRADLEW="$(find app-lock-source -type f -name gradlew -print -quit)"
+          if [ -z "$GRADLEW" ]; then
+            echo "gradlew was not found inside the uploaded ZIP."
+            find app-lock-source -maxdepth 4 -type f | head -80
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$GRADLEW")"
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Build Debug APK
+        working-directory: .
+        run: |
+          chmod +x "${{ steps.project.outputs.dir }}/gradlew"
+          cd "${{ steps.project.outputs.dir }}"
+          ./gradlew --no-daemon clean assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppLock-debug-apk
+          path: app-lock-source/**/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
