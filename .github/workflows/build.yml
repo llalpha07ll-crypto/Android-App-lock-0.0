@@ -1,13 +1,8 @@
 name: AppLock APK Builder
 on: [push, workflow_dispatch]
-  workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
