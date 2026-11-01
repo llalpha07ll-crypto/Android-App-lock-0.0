@@ -3,14 +3,21 @@ package com.example.applock
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.inputmethod.InputMethodManager
 
 /** Detects foreground app changes and shows the lock screen for protected apps. */
 class AppLockService : AccessibilityService() {
     companion object {
+        /** True while the lock screen is in front of the user. */
         @Volatile
-        var lockShowing: Boolean = false
+        var lockActive: Boolean = false
+        @Volatile
+        private var lastLaunch: Long = 0L
+
+        fun canLaunchLock(): Boolean =
+            !lockActive && SystemClock.elapsedRealtime() - lastLaunch > 1500
     }
 
     private val ignoredPackages = setOf("com.android.systemui", "android")
@@ -31,11 +38,11 @@ class AppLockService : AccessibilityService() {
             UnlockState.markOpen(pkg)
             return
         }
-        if (!lockShowing) launchLock(pkg)
+        if (canLaunchLock()) launchLock(pkg)
     }
 
     private fun launchLock(pkg: String) {
-        lockShowing = true
+        lastLaunch = SystemClock.elapsedRealtime()
         val intent = Intent(this, LockActivity::class.java).apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -47,7 +54,7 @@ class AppLockService : AccessibilityService() {
         try {
             startActivity(intent)
         } catch (e: Exception) {
-            lockShowing = false
+            lastLaunch = 0L
         }
     }
 

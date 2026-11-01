@@ -1,10 +1,11 @@
 package com.example.applock
 
+import android.app.KeyguardManager
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
-import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -19,13 +20,19 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.core.hardware.fingerprint.FingerprintManagerCompat
+import androidx.core.os.CancellationSignal
 import kotlin.math.max
 
-/** Lock screen styled like the system app-lock prompt: shows the locked app's own icon and name. */
+/**
+ * Lock prompt for a protected app. Shows a card with the locked app's own icon and name,
+ * fingerprint/face unlock, and a button to use the PIN instead.
+ */
 class LockActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_PKG = "target_pkg"
@@ -33,17 +40,31 @@ class LockActivity : AppCompatActivity() {
     }
 
     private var targetPkg = ""
+    private var appName = ""
     private var finished = false
+    private var awaitingSystem = false
+    private var bioAvailable = false
+    private var customBuilt = false
+    private var fingerprintTried = false
     private val entered = StringBuilder()
+    private var fpCancel: CancellationSignal? = null
 
+    private lateinit var card: View
+    private lateinit var customLayout: View
     private lateinit var hintView: TextView
     private lateinit var dotsRow: LinearLayout
     private lateinit var inputArea: FrameLayout
+    private lateinit var cardDesc: TextView
+
+    private val credentialLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            awaitingSystem = false
+            if (result.resultCode == RESULT_OK) unlockAndClose()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        AppLockService.lockShowing = true
         targetPkg = intent.getStringExtra(EXTRA_PKG).orEmpty()
 
         if (!LockPrefs.hasCredential(this)) {
@@ -53,24 +74,163 @@ class LockActivity : AppCompatActivity() {
         }
 
         setContentView(R.layout.activity_lock)
+        appName = appLabel()
+        val icon: Drawable? = try { packageManager.getApplicationIcon(targetPkg) } catch (_: Exception) { null }
+
+        card = findViewById(R.id.card)
+        customLayout = findViewById(R.id.customLayout)
         hintView = findViewById(R.id.lockHint)
         dotsRow = findViewById(R.id.dotsRow)
         inputArea = findViewById(R.id.inputArea)
+        cardDesc = findViewById(R.id.cardDesc)
 
-        findViewById<TextView>(R.id.lockAppName).text = appLabel()
-        findViewById<ImageView>(R.id.lockIcon).setImageDrawable(
-            try { packageManager.getApplicationIcon(targetPkg) } catch (_: Exception) { null }
+        // The locked app's own icon and name (never App Lock's).
+        findViewById<ImageView>(R.id.cardIcon).setImageDrawable(icon)
+        findViewById<TextView>(R.id.cardAppName).text = appName
+        findViewById<ImageView>(R.id.lockIcon).setImageDrawable(icon)
+        findViewById<TextView>(R.id.lockAppName).text = appName
+        findViewById<TextView>(R.id.cardTitle).text = "Unlock $appName"
+
+        val type = LockPrefs.getType(this)
+        val useLabel = when (type) {
+            "Pattern" -> "Use pattern"
+            "Password" -> "Use password"
+            "PIN" -> "Use PIN"
+            else -> "Use PIN"
+        }
+        val usePin = findViewById<TextView>(R.id.cardUsePin)
+        usePin.text = useLabel
+        usePin.setOnClickListener { proceedToCredential() }
+
+        bioAvailable = LockPrefs.biometricEnabled(this) &&
+            BiometricManager.from(this)
+                .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
+
+        if (bioAvailable) {
+            cardDesc.text = "Confirm biometric authentication to access $appName"
+            findViewById<View>(R.id.cardFingerprint).setOnClickListener { showBiometricPrompt() }
+            val face = findViewById<TextView>(R.id.cardFace)
+            face.visibility = View.VISIBLE
+            face.setOnClickListener { showBiometricPrompt() }
+        } else {
+            findViewById<View>(R.id.cardFingerprint).visibility = View.GONE
+            cardDesc.text = "Enter your lock to access $appName"
+            window.decorView.post { proceedToCredential() }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppLockService.lockActive = true
+        if (bioAvailable && !finished && !awaitingSystem && card.visibility == View.VISIBLE) {
+            val started = startSilentFingerprint()
+            if (!started && !fingerprintTried) {
+                fingerprintTried = true
+                window.decorView.post { showBiometricPrompt() }
+            }
+        }
+    }
+
+    override fun onPause() {
+        AppLockService.lockActive = false
+        fpCancel?.cancel()
+        fpCancel = null
+        super.onPause()
+    }
+
+    // ---------- Fingerprint / face ----------
+    /** Listens for a fingerprint without showing any system sheet, so only our card is visible. */
+    @Suppress("DEPRECATION")
+    private fun startSilentFingerprint(): Boolean {
+        return try {
+            val fm = FingerprintManagerCompat.from(this)
+            if (!fm.isHardwareDetected || !fm.hasEnrolledFingerprints()) return false
+            val cancel = CancellationSignal()
+            fpCancel = cancel
+            fm.authenticate(null, 0, cancel, object : FingerprintManagerCompat.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: FingerprintManagerCompat.AuthenticationResult?) {
+                    unlockAndClose()
+                }
+
+                override fun onAuthenticationFailed() {
+                    cardDesc.text = "Fingerprint not recognised. Try again."
+                }
+            }, null)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun showBiometricPrompt() {
+        if (finished) return
+        fpCancel?.cancel()
+        fpCancel = null
+        val prompt = BiometricPrompt(
+            this,
+            ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    unlockAndClose()
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) proceedToCredential()
+                }
+            }
         )
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Unlock $appName")
+            .setSubtitle("Use your fingerprint or face")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            .setNegativeButtonText("Use PIN")
+            .build()
+        prompt.authenticate(info)
+    }
 
+    // ---------- PIN / pattern / password ----------
+    private fun proceedToCredential() {
+        if (finished) return
+        if (LockPrefs.getType(this) == LockPrefs.TYPE_SYSTEM) {
+            launchSystemCredential()
+        } else {
+            showCustomCredential()
+        }
+    }
+
+    /** Opens the phone's own PIN/pattern/password screen. */
+    private fun launchSystemCredential() {
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        val intent = km.createConfirmDeviceCredentialIntent(
+            "Unlock $appName",
+            "Confirm your phone lock to access $appName"
+        )
+        if (intent == null) {
+            Toast.makeText(this, "Set a screen lock in your phone's Settings first", Toast.LENGTH_LONG).show()
+            goHome()
+            return
+        }
+        awaitingSystem = true
+        fpCancel?.cancel()
+        fpCancel = null
+        credentialLauncher.launch(intent)
+    }
+
+    private fun showCustomCredential() {
+        card.visibility = View.GONE
+        customLayout.visibility = View.VISIBLE
+        if (customBuilt) return
+        customBuilt = true
         when (LockPrefs.getType(this)) {
             "Pattern" -> buildPattern()
             "Password" -> buildPassword()
             else -> buildPin()
         }
-        setupBiometric()
     }
 
-    // ---------- PIN ----------
+    private fun isNight(): Boolean =
+        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
     private fun buildPin() {
         hintView.text = "Enter PIN"
         val grid = GridLayout(this).apply { columnCount = 3; rowCount = 4 }
@@ -147,12 +307,11 @@ class LockActivity : AppCompatActivity() {
         }
     }
 
-    // ---------- Pattern ----------
     private fun buildPattern() {
         hintView.text = "Draw your pattern"
         dotsRow.visibility = View.GONE
         val pv = PatternView(this)
-        pv.setDarkStyle((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
+        pv.setDarkStyle(isNight())
         pv.onComplete = { pattern, valid ->
             if (!valid) {
                 showError("Connect at least 4 dots")
@@ -170,7 +329,6 @@ class LockActivity : AppCompatActivity() {
         )
     }
 
-    // ---------- Password ----------
     private fun buildPassword() {
         hintView.text = "Enter password"
         dotsRow.visibility = View.GONE
@@ -205,38 +363,6 @@ class LockActivity : AppCompatActivity() {
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
     }
 
-    // ---------- Fingerprint ----------
-    private fun setupBiometric() {
-        if (!LockPrefs.biometricEnabled(this)) return
-        val ok = BiometricManager.from(this)
-            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
-        if (!ok) return
-        val button = findViewById<TextView>(R.id.fingerprintButton)
-        button.visibility = View.VISIBLE
-        button.setOnClickListener { showBiometric() }
-        window.decorView.post { showBiometric() }
-    }
-
-    private fun showBiometric() {
-        if (finished) return
-        val prompt = BiometricPrompt(
-            this,
-            ContextCompat.getMainExecutor(this),
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    unlockAndClose()
-                }
-            }
-        )
-        val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(appLabel())
-            .setSubtitle("Use your fingerprint or face to open this app")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
-            .setNegativeButtonText("Use ${LockPrefs.getType(this).ifBlank { "PIN" }}")
-            .build()
-        prompt.authenticate(info)
-    }
-
     // ---------- Helpers ----------
     private fun showError(message: String) {
         hintView.text = message
@@ -254,6 +380,7 @@ class LockActivity : AppCompatActivity() {
     private fun unlockAndClose() {
         if (finished) return
         finished = true
+        fpCancel?.cancel()
         UnlockState.markOpen(targetPkg)
         finish()
     }
@@ -274,15 +401,15 @@ class LockActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        // If the user leaves the lock screen without unlocking, close it so the target app stays protected.
-        if (!finished && !isChangingConfigurations) {
+        // If the user leaves without unlocking, close this screen so the target app stays protected.
+        if (!finished && !isChangingConfigurations && !awaitingSystem) {
             finished = true
             finish()
         }
     }
 
     override fun onDestroy() {
-        AppLockService.lockShowing = false
+        AppLockService.lockActive = false
         super.onDestroy()
     }
 }

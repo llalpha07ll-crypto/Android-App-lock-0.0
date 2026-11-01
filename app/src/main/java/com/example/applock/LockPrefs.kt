@@ -19,6 +19,7 @@ object LockPrefs {
 
     /** Relock delay value meaning "stay unlocked until the screen turns off". */
     const val DELAY_UNTIL_SCREEN_OFF = -1
+    const val TYPE_SYSTEM = "System"
     const val MAX_DELAY_SECONDS = 24 * 60 * 60
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -59,8 +60,15 @@ object LockPrefs {
     // ---- Credential ----
     fun getType(ctx: Context): String = prefs(ctx).getString(KEY_TYPE, "") ?: ""
 
-    fun hasCredential(ctx: Context): Boolean =
-        getType(ctx).isNotBlank() && prefs(ctx).contains(KEY_HASH)
+    fun hasCredential(ctx: Context): Boolean {
+        val type = getType(ctx)
+        return type == TYPE_SYSTEM || (type.isNotBlank() && prefs(ctx).contains(KEY_HASH))
+    }
+
+    /** Use the phone's own screen lock (PIN/pattern/password) through the system screen. */
+    fun setSystemCredential(ctx: Context) {
+        prefs(ctx).edit().putString(KEY_TYPE, TYPE_SYSTEM).remove(KEY_SALT).remove(KEY_HASH).apply()
+    }
 
     fun setCredential(ctx: Context, type: String, value: String) {
         val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }

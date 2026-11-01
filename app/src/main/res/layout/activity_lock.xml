@@ -1,65 +1,155 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/lock_background"
-    android:fitsSystemWindows="true"
-    android:gravity="center_horizontal"
-    android:orientation="vertical"
-    android:paddingTop="48dp"
-    android:paddingBottom="16dp">
+    android:background="@color/lock_scrim">
 
-    <ImageView
-        android:id="@+id/lockIcon"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
-        android:contentDescription="@null" />
-
-    <TextView
-        android:id="@+id/lockAppName"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:gravity="center"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:textColor="@color/lock_text"
-        android:textSize="22sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/lockHint"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:gravity="center"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:textColor="@color/lock_text_secondary"
-        android:textSize="15sp" />
-
+    <!-- Card: shown first (like a system app-lock prompt) -->
     <LinearLayout
-        android:id="@+id/dotsRow"
-        android:layout_width="wrap_content"
-        android:layout_height="24dp"
-        android:layout_marginTop="24dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal" />
-
-    <FrameLayout
-        android:id="@+id/inputArea"
+        android:id="@+id/card"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="12dp"
-        android:layout_weight="1" />
-
-    <TextView
-        android:id="@+id/fingerprintButton"
-        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:padding="12dp"
-        android:text="Use fingerprint / face"
-        android:textColor="@color/oneui_primary"
-        android:textSize="15sp"
-        android:visibility="gone" />
-</LinearLayout>
+        android:layout_gravity="center"
+        android:layout_margin="20dp"
+        android:background="@drawable/lock_card"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingTop="32dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="20dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/cardIcon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/cardAppName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/lock_text"
+                android:textSize="18sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/cardTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:gravity="center"
+            android:textColor="@color/lock_text"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/cardFingerprint"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginTop="28dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="Fingerprint"
+            android:focusable="true"
+            android:src="@drawable/ic_fingerprint" />
+
+        <TextView
+            android:id="@+id/cardDesc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:textColor="@color/lock_text_secondary"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/cardFace"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:padding="10dp"
+            android:text="Use face unlock"
+            android:textColor="@color/oneui_primary"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/cardUsePin"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="?attr/selectableItemBackground"
+            android:padding="14dp"
+            android:textColor="@color/lock_text"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Own PIN / pattern / password screen (only for "Own ..." lock methods) -->
+    <LinearLayout
+        android:id="@+id/customLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/lock_background"
+        android:fitsSystemWindows="true"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingTop="48dp"
+        android:paddingBottom="16dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/lockIcon"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:id="@+id/lockAppName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:textColor="@color/lock_text"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/lockHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:textColor="@color/lock_text_secondary"
+            android:textSize="15sp" />
+
+        <LinearLayout
+            android:id="@+id/dotsRow"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:layout_marginTop="24dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal" />
+
+        <FrameLayout
+            android:id="@+id/inputArea"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="12dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+</FrameLayout>

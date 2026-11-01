@@ -1,6 +1,7 @@
 package com.example.applock
 
 import android.app.AlertDialog
+import android.app.KeyguardManager
 import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.os.Bundle
@@ -103,7 +104,7 @@ class MainActivity : AppCompatActivity() {
         updateStatus()
         durationSummary.text = formatDelay(LockPrefs.getRelockDelay(this))
         credentialStatus.text =
-            if (LockPrefs.hasCredential(this)) LockPrefs.getType(this) else "Not set"
+            if (LockPrefs.hasCredential(this)) typeLabel(LockPrefs.getType(this)) else "Not set"
         refreshToggles()
 
         // Lock this app itself: hide the content until the user unlocks.
@@ -111,7 +112,7 @@ class MainActivity : AppCompatActivity() {
             LockPrefs.isSelfLocked(this) &&
             !UnlockState.isUnlocked(packageName)
         content.visibility = if (needsUnlock) View.INVISIBLE else View.VISIBLE
-        if (needsUnlock && !AppLockService.lockShowing) {
+        if (needsUnlock && AppLockService.canLaunchLock()) {
             startActivity(Intent(this, LockActivity::class.java).putExtra(LockActivity.EXTRA_PKG, packageName))
         }
     }
@@ -290,10 +291,15 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Lock method setup ----------
     private fun showCredentialSetup() {
-        val choices = arrayOf("PIN", "Pattern", "Password")
+        val choices = arrayOf("Phone screen lock (system screen)", "Own PIN", "Own pattern", "Own password")
+        val types = arrayOf(LockPrefs.TYPE_SYSTEM, "PIN", "Pattern", "Password")
         AlertDialog.Builder(this).setTitle("Choose lock method")
             .setItems(choices) { _, which ->
-                val type = choices[which]
+                val type = types[which]
+                if (type == LockPrefs.TYPE_SYSTEM) {
+                    setupSystemLock()
+                    return@setItems
+                }
                 if (type == "Pattern") {
                     showPatternSetup()
                     return@setItems
@@ -330,12 +336,25 @@ class MainActivity : AppCompatActivity() {
             }.setNegativeButton("Cancel", null).show()
     }
 
+    private fun typeLabel(type: String): String =
+        if (type == LockPrefs.TYPE_SYSTEM) "Phone screen lock" else type
+
+    private fun setupSystemLock() {
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        if (!km.isDeviceSecure) {
+            toast("First set a PIN, pattern or password in your phone's Settings")
+            return
+        }
+        LockPrefs.setSystemCredential(this)
+        onCredentialSaved(LockPrefs.TYPE_SYSTEM)
+    }
+
     private fun onCredentialSaved(type: String) {
-        credentialStatus.text = type
+        credentialStatus.text = typeLabel(type)
         updateStatus()
         // The user just proved they know the credential by setting it; don't lock them out right away.
         UnlockState.markOpen(packageName)
-        toast("$type saved")
+        toast("${typeLabel(type)} saved")
     }
 
     private fun showPatternSetup() {

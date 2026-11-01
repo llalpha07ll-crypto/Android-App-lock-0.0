@@ -8,6 +8,8 @@
     <color name="oneui_divider">#E6E6E6</color>
     <color name="oneui_chip">#EDEDED</color>
     <color name="lock_background">#F6F6F6</color>
+    <color name="lock_card">#F6F6F6</color>
+    <color name="lock_scrim">#3B3B3B</color>
     <color name="lock_text">#191919</color>
     <color name="lock_ripple">#22000000</color>
     <color name="lock_text_secondary">#6E6E6E</color>
