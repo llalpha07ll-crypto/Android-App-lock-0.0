@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AppLock" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorAccent">@color/oneui_primary</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">@color/oneui_primary</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@color/oneui_background</item>
+        <item name="android:navigationBarColor">@color/oneui_background</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">@color/oneui_background</item>
+    </style>
+
+    <style name="LockTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="colorAccent">@color/oneui_primary</item>
+        <item name="android:windowBackground">@color/lock_background</item>
+        <item name="android:statusBarColor">@color/lock_background</item>
+        <item name="android:navigationBarColor">@color/lock_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

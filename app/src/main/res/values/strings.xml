@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">App Lock</string>
+    <string name="service_description">App Lock detects which app is open so it can ask for your PIN, pattern or password before a protected app opens. It does not collect or send any data.</string>
+    <string name="title">App Lock</string>
+    <string name="status_title">Protection</string>
+    <string name="status_on">On. Apps you select below are protected.</string>
+    <string name="status_off">Off. Turn on the App Lock service in Accessibility settings.</string>
+    <string name="status_no_lock">Set a PIN, pattern or password first.</string>
+    <string name="enable_service">Open Accessibility settings</string>
+    <string name="security_title">Security</string>
+    <string name="screen_lock_title">Lock method</string>
+    <string name="biometric_title">Fingerprint unlock</string>
+    <string name="biometric_summary">Use your fingerprint instead of typing</string>
+    <string name="self_lock_title">Lock App Lock itself</string>
+    <string name="self_lock_summary">Ask for unlock before opening this app</string>
+    <string name="duration_title">Unlock duration</string>
+    <string name="duration_help">How long an app stays unlocked after you leave it</string>
+    <string name="apps_title">Apps</string>
+    <string name="search_hint">Search apps</string>
+    <string name="lock_all">Lock all</string>
+    <string name="unlock_all">Unlock all</string>
+    <string name="no_apps">No apps found</string>
+</resources>
