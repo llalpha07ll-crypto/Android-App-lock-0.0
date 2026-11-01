@@ -6,6 +6,7 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -71,6 +72,7 @@ class LockActivity : AppCompatActivity() {
             return
         }
 
+        AppLockService.lockActive = true
         setContentView(R.layout.activity_lock)
         appName = appLabel()
         val icon: Drawable? = try { packageManager.getApplicationIcon(targetPkg) } catch (_: Exception) { null }
@@ -107,7 +109,11 @@ class LockActivity : AppCompatActivity() {
         // No intermediate card: go straight to fingerprint/face, or to the PIN screen.
         card.visibility = View.GONE
         window.decorView.post {
-            if (bioAvailable) showBiometricPrompt() else proceedToCredential()
+            when {
+                type == LockPrefs.TYPE_SYSTEM && Build.VERSION.SDK_INT >= 30 -> showSystemPrompt()
+                bioAvailable -> showBiometricPrompt()
+                else -> proceedToCredential()
+            }
         }
     }
 
@@ -117,13 +123,49 @@ class LockActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        AppLockService.lockActive = false
         fpCancel?.cancel()
         fpCancel = null
         super.onPause()
     }
 
     // ---------- Fingerprint / face ----------
+    /**
+     * One system sheet that handles fingerprint/face AND the phone's own PIN/pattern/password
+     * (with its built-in "Use PIN" switch), so no second screen is needed.
+     */
+    private fun showSystemPrompt() {
+        if (finished) return
+        val auth = if (bioAvailable) {
+            BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        } else {
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        }
+        if (BiometricManager.from(this).canAuthenticate(auth) != BiometricManager.BIOMETRIC_SUCCESS) {
+            Toast.makeText(this, "Set a screen lock in your phone's Settings first", Toast.LENGTH_LONG).show()
+            goHome()
+            return
+        }
+        val prompt = BiometricPrompt(
+            this,
+            ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    unlockAndClose()
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    goHome()
+                }
+            }
+        )
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Unlock $appName")
+            .setSubtitle(if (bioAvailable) "Use your fingerprint, face or phone lock" else "Enter your phone lock")
+            .setAllowedAuthenticators(auth)
+            .build()
+        prompt.authenticate(info)
+    }
+
     private fun showBiometricPrompt() {
         if (finished) return
         fpCancel?.cancel()
@@ -370,6 +412,7 @@ class LockActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        AppLockService.lockActive = false
         // If the user leaves without unlocking, close this screen so the target app stays protected.
         if (!finished && !isChangingConfigurations && !awaitingSystem) {
             finished = true

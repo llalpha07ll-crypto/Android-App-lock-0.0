@@ -20,7 +20,11 @@ class AppLockService : AccessibilityService() {
             !lockActive && SystemClock.elapsedRealtime() - lastLaunch > 1500
     }
 
-    private val ignoredPackages = setOf("com.android.systemui", "android")
+    private val ignoredPackages = setOf(
+        "com.android.systemui",
+        "android",
+        "com.samsung.android.biometrics.app.setting"
+    )
     private var lastPkg: String? = null
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
