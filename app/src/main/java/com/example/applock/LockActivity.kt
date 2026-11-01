@@ -25,7 +25,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
-import androidx.core.hardware.fingerprint.FingerprintManagerCompat
 import androidx.core.os.CancellationSignal
 import kotlin.math.max
 
@@ -45,7 +44,6 @@ class LockActivity : AppCompatActivity() {
     private var awaitingSystem = false
     private var bioAvailable = false
     private var customBuilt = false
-    private var fingerprintTried = false
     private val entered = StringBuilder()
     private var fpCancel: CancellationSignal? = null
 
@@ -59,7 +57,7 @@ class LockActivity : AppCompatActivity() {
     private val credentialLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             awaitingSystem = false
-            if (result.resultCode == RESULT_OK) unlockAndClose()
+            if (result.resultCode == RESULT_OK) unlockAndClose() else goHome()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,29 +104,16 @@ class LockActivity : AppCompatActivity() {
             BiometricManager.from(this)
                 .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 
-        if (bioAvailable) {
-            cardDesc.text = "Confirm biometric authentication to access $appName"
-            findViewById<View>(R.id.cardFingerprint).setOnClickListener { showBiometricPrompt() }
-            val face = findViewById<TextView>(R.id.cardFace)
-            face.visibility = View.VISIBLE
-            face.setOnClickListener { showBiometricPrompt() }
-        } else {
-            findViewById<View>(R.id.cardFingerprint).visibility = View.GONE
-            cardDesc.text = "Enter your lock to access $appName"
-            window.decorView.post { proceedToCredential() }
+        // No intermediate card: go straight to fingerprint/face, or to the PIN screen.
+        card.visibility = View.GONE
+        window.decorView.post {
+            if (bioAvailable) showBiometricPrompt() else proceedToCredential()
         }
     }
 
     override fun onResume() {
         super.onResume()
         AppLockService.lockActive = true
-        if (bioAvailable && !finished && !awaitingSystem && card.visibility == View.VISIBLE) {
-            val started = startSilentFingerprint()
-            if (!started && !fingerprintTried) {
-                fingerprintTried = true
-                window.decorView.post { showBiometricPrompt() }
-            }
-        }
     }
 
     override fun onPause() {
@@ -139,29 +124,6 @@ class LockActivity : AppCompatActivity() {
     }
 
     // ---------- Fingerprint / face ----------
-    /** Listens for a fingerprint without showing any system sheet, so only our card is visible. */
-    @Suppress("DEPRECATION")
-    private fun startSilentFingerprint(): Boolean {
-        return try {
-            val fm = FingerprintManagerCompat.from(this)
-            if (!fm.isHardwareDetected || !fm.hasEnrolledFingerprints()) return false
-            val cancel = CancellationSignal()
-            fpCancel = cancel
-            fm.authenticate(null, 0, cancel, object : FingerprintManagerCompat.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: FingerprintManagerCompat.AuthenticationResult) {
-                    unlockAndClose()
-                }
-
-                override fun onAuthenticationFailed() {
-                    cardDesc.text = "Fingerprint not recognised. Try again."
-                }
-            }, null)
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
     private fun showBiometricPrompt() {
         if (finished) return
         fpCancel?.cancel()
@@ -175,7 +137,14 @@ class LockActivity : AppCompatActivity() {
                 }
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) proceedToCredential()
+                    when (errorCode) {
+                        BiometricPrompt.ERROR_NEGATIVE_BUTTON,
+                        BiometricPrompt.ERROR_LOCKOUT,
+                        BiometricPrompt.ERROR_LOCKOUT_PERMANENT,
+                        BiometricPrompt.ERROR_HW_UNAVAILABLE,
+                        BiometricPrompt.ERROR_NO_BIOMETRICS -> proceedToCredential()
+                        else -> goHome()
+                    }
                 }
             }
         )
