@@ -2,7 +2,9 @@ package com.example.applock
 
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -70,17 +72,18 @@ class LockActivity : AppCompatActivity() {
 
     // ---------- PIN ----------
     private fun buildPin() {
-        hintView.text = "Enter your PIN"
+        hintView.text = "Enter PIN"
         val grid = GridLayout(this).apply { columnCount = 3; rowCount = 4 }
         val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "←", "0", "OK")
         for (k in keys) {
             val special = k == "←" || k == "OK"
             val key = TextView(this).apply {
                 text = k
-                textSize = if (special) 18f else 26f
-                setTextColor(Color.WHITE)
+                textSize = if (special) 17f else 30f
+                setTextColor(ContextCompat.getColor(this@LockActivity, R.color.lock_text))
+                typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
                 gravity = Gravity.CENTER
-                setBackgroundResource(if (special) R.drawable.key_background_flat else R.drawable.key_background)
+                setBackgroundResource(R.drawable.key_background_flat)
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { onPinKey(k) }
@@ -149,7 +152,7 @@ class LockActivity : AppCompatActivity() {
         hintView.text = "Draw your pattern"
         dotsRow.visibility = View.GONE
         val pv = PatternView(this)
-        pv.setDarkStyle(true)
+        pv.setDarkStyle((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
         pv.onComplete = { pattern, valid ->
             if (!valid) {
                 showError("Connect at least 4 dots")
@@ -169,14 +172,15 @@ class LockActivity : AppCompatActivity() {
 
     // ---------- Password ----------
     private fun buildPassword() {
-        hintView.text = "Enter your password"
+        hintView.text = "Enter password"
         dotsRow.visibility = View.GONE
         val input = EditText(this).apply {
             hint = "Password"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setTextColor(Color.WHITE)
-            setHintTextColor(0x99FFFFFF.toInt())
-            backgroundTintList = ColorStateList.valueOf(Color.WHITE)
+            val textColor = ContextCompat.getColor(this@LockActivity, R.color.lock_text)
+            setTextColor(textColor)
+            setHintTextColor(ContextCompat.getColor(this@LockActivity, R.color.lock_text_secondary))
+            backgroundTintList = ColorStateList.valueOf(textColor)
             gravity = Gravity.CENTER
             imeOptions = EditorInfo.IME_ACTION_DONE
             setSingleLine(true)
@@ -226,7 +230,7 @@ class LockActivity : AppCompatActivity() {
         )
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle(appLabel())
-            .setSubtitle("Verify it's you to open this app")
+            .setSubtitle("Use your fingerprint or face to open this app")
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
             .setNegativeButtonText("Use ${LockPrefs.getType(this).ifBlank { "PIN" }}")
             .build()

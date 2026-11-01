@@ -10,4 +10,13 @@
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowBackground">@color/oneui_background</item>
     </style>
+
+    <style name="LockTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorAccent">@color/oneui_primary</item>
+        <item name="android:windowBackground">@color/lock_background</item>
+        <item name="android:statusBarColor">@color/lock_background</item>
+        <item name="android:navigationBarColor">@color/lock_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
 </resources>

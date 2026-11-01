@@ -10,8 +10,8 @@
     <string name="enable_service">Open Accessibility settings</string>
     <string name="security_title">Security</string>
     <string name="screen_lock_title">Lock method</string>
-    <string name="biometric_title">Fingerprint unlock</string>
-    <string name="biometric_summary">Use your fingerprint instead of typing</string>
+    <string name="biometric_title">Fingerprint / face unlock</string>
+    <string name="biometric_summary">Use a fingerprint or face registered on your phone</string>
     <string name="self_lock_title">Lock App Lock itself</string>
     <string name="self_lock_summary">Ask for unlock before opening this app</string>
     <string name="duration_title">Unlock duration</string>
