@@ -148,7 +148,7 @@ class LockActivity : AppCompatActivity() {
             val cancel = CancellationSignal()
             fpCancel = cancel
             fm.authenticate(null, 0, cancel, object : FingerprintManagerCompat.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: FingerprintManagerCompat.AuthenticationResult?) {
+                override fun onAuthenticationSucceeded(result: FingerprintManagerCompat.AuthenticationResult) {
                     unlockAndClose()
                 }
 
